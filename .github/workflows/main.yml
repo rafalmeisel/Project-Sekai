@@ -1,4 +1,4 @@
-name: Update External Payload Repositories
+name: Update Payload Repositories
 
 on:
   workflow_dispatch:
@@ -10,7 +10,6 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # Checkout main repo
       - name: Checkout main repository
         uses: actions/checkout@v4
         with:
@@ -19,13 +18,13 @@ jobs:
       ###############################################################
       # CHECK IF FOLDER EXISTS, IF NOT — CREATE IT
       ###############################################################
-      - name: Ensure Payload Repositories exists
+      - name: Ensure PayloadRepositories directory exists
         run: |
-          if [ ! -d "Payload Repositories" ]; then
-            echo "Create directory Payload Repositories"
-            mkdir -p "Payload Repositories"
+          if [ ! -d "PayloadRepositories" ]; then
+            echo "Creating directory PayloadRepositories"
+            mkdir -p "PayloadRepositories"
           else
-            echo "Directory 'Payload Repositories' already exists!"
+            echo "Directory PayloadRepositories already exists!"
           fi
 
       ###############################################################
@@ -37,47 +36,58 @@ jobs:
           echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # FETCH DATA
+      # FETCH DATA FOR EACH REPOSITORY
       ###############################################################
       - name: Download repositories
         run: |
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
-            echo "Fetch repository: $repo"
-            rm -rf "Payload Repositories/$name"
-            git clone --depth 1 https://github.com/$repo.git "Payload Repositories/$name"
+            echo "Fetching repository: $repo"
+            rm -rf "PayloadRepositories/$name"
+            git clone --depth 1 https://github.com/$repo.git "PayloadRepositories/$name"
           done
 
-        ###############################################################
-      # GENERATE FILE 'Payload Repositories' with information about latest commits
       ###############################################################
-      - name: Generate Payload Repositories file
+      # GENERATE PayloadRepositories.md
+      ###############################################################
+      - name: Generate PayloadRepositories.md
         env:
           TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo "" > PayloadRepositories
+          echo "| Repository name | Data | Link |" > PayloadRepositories.md
+          echo "|--------------------|------|------|" >> PayloadRepositories.md
 
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
             api="https://api.github.com/repos/$repo/commits/main"
-            commit=$(curl -s -H "Authorization: token $TOKEN" $api | jq -r '.sha')
-            echo "$name | $commit" >> PayloadRepositories
-            echo "Dodano: $name | $commit"
+            json=$(curl -s -H "Authorization: token $TOKEN" $api)
+
+            # Fetch SHA and latest commit date
+            commit=$(echo "$json" | jq -r '.sha')
+            date=$(echo "$json" | jq -r '.commit.author.date')
+
+            # Link to repository
+            link="https://github.com/$repo"
+
+            echo "| $name | $date | [$repo]($link) |" >> PayloadRepositories.md
+
+            echo "Dodano: $name | $date | $link"
           done
 
+
       ###############################################################
-      # COMMIT AND PUSH CHANGES TO REPOSITORY
+      # COMMIT AND PUSH CHANGES
       ###############################################################
       - name: Commit and push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add 'Payload Repositories' 'PayloadRepositories'
+          git add PayloadRepositories PayloadRepositories.txt
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
           else
             git commit -m "Auto-update external payload repositories"
-            git push
+            git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }} HEAD:${{ github.ref }}
           fi
