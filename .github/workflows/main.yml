@@ -61,7 +61,7 @@ jobs:
             rm -rf "$dest"
 
             # Clone repository
-            git clone "https://github.com/$repo.git" "$dest"
+            git clone "$repo.git" "$dest"
 
             # Move .git to .git_history to prevent submodule and preserve history
             if [ -d "$dest/.git" ]; then
