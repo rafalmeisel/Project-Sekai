@@ -26,12 +26,19 @@ jobs:
           mkdir -p "Payload Repositories"
 
       ###############################################################
-      # SET REPOSITORY LIST
+      # READ REPOSITORIES FROM FILE
       ###############################################################
-      - name: Set repository list
+      - name: Read repository list from file
         id: repos
         run: |
-          echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
+          REPO_FILE="Payload Repositories Source.txt"
+          if [ ! -f "$REPO_FILE" ]; then
+            echo "Repository file not found: $REPO_FILE"
+            exit 1
+          fi
+          # Join URLs with space to store in output
+          REPOS=$(paste -sd ' ' "$REPO_FILE")
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
 
       ###############################################################
       # CLONE REPOSITORIES INTO DATE FOLDERS, PRESERVE HISTORY, NO SUBMODULE
@@ -40,13 +47,13 @@ jobs:
         run: |
           TODAY=$(date +%Y_%m_%d)
 
-          for repo in ${{ steps.repos.outputs.repos }}; do
-            NAME=$(basename $repo)
+          for repo_url in ${{ steps.repos.outputs.repos }}; do
+            NAME=$(basename "$repo_url" .git)
             TARGET_DIR="Payload Repositories/$NAME/${TODAY}_$NAME"
             TMP_DIR=$(mktemp -d)
 
-            echo "Cloning $repo into temporary folder"
-            git clone "https://github.com/$repo.git" "$TMP_DIR/$NAME"
+            echo "Cloning $repo_url into temporary folder"
+            git clone "$repo_url" "$TMP_DIR/$NAME"
 
             # Move .git to .git_history to avoid submodule
             mv "$TMP_DIR/$NAME/.git" "$TMP_DIR/$NAME/.git_history"
@@ -84,12 +91,12 @@ jobs:
           echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
-          for repo in ${{ steps.repos.outputs.repos }}; do
-            NAME=$(basename $repo)
-            api="https://api.github.com/repos/$repo/commits/main"
+          for repo_url in ${{ steps.repos.outputs.repos }}; do
+            NAME=$(basename "$repo_url" .git)
+            api="https://api.github.com/repos/${NAME%.*}/commits/main"
             json=$(curl -s -H "Authorization: token $TOKEN" $api)
             date=$(echo "$json" | jq -r '.commit.author.date')
-            link="https://github.com/$repo"
+            link="${repo_url%.git}"
             echo "$date|$NAME|$link" >> $tmpfile
           done
 
