@@ -23,12 +23,7 @@ jobs:
       ###############################################################
       - name: Ensure Payload Repositories directory exists
         run: |
-          if [ ! -d "Payload Repositories" ]; then
-            echo "Creating directory Payload Repositories"
-            mkdir -p "Payload Repositories"
-          else
-            echo "Directory 'Payload Repositories' already exists!"
-          fi
+          mkdir -p "Payload Repositories"
 
       ###############################################################
       # LIST OF REPOSITORIES TO FETCH
@@ -39,15 +34,17 @@ jobs:
           echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # DOWNLOAD ENTIRE REPOSITORIES
+      # DOWNLOAD ENTIRE REPOSITORIES WITH TOKEN
       ###############################################################
       - name: Clone repositories
+        env:
+          TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
             echo "Cloning repository: $repo"
             rm -rf "Payload Repositories/$name"
-            git clone https://github.com/$repo.git "Payload Repositories/$name"
+            git clone https://$TOKEN@github.com/$repo.git "Payload Repositories/$name"
           done
 
       ###############################################################
@@ -60,7 +57,6 @@ jobs:
           echo "| Repository Name | Date | Link |" > "PayloadRepositories.md"
           echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
-          # Create a temporary file with repo info and commit dates
           tmpfile=$(mktemp)
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
@@ -71,7 +67,6 @@ jobs:
             echo "$date|$name|$link" >> $tmpfile
           done
 
-          # Sort by date descending and append to Markdown
           sort -r $tmpfile | while IFS='|' read -r date name link; do
             echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
             echo "Added: $name | $date | $link"
@@ -82,6 +77,8 @@ jobs:
       # COMMIT AND PUSH CHANGES
       ###############################################################
       - name: Commit and push changes
+        env:
+          TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
@@ -92,5 +89,4 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update external payload repositories"
-            git push https://x-access-token:${{ secrets.GH_TOKEN }}@github.com/${{ github.repository }} HEAD:${{ github.ref }}
-          fi
+            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:${{ github.ref }}
