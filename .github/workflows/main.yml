@@ -46,18 +46,23 @@ jobs:
               echo "Repository $name exists. Pulling latest changes..."
               git -C "$target" fetch origin
               LOCAL=$(git -C "$target" rev-parse @)
-              REMOTE=$(git -C "$target" rev-parse @{u})
-              if [ "$LOCAL" != "$REMOTE" ]; then
+              REMOTE=$(git -C "$target" rev-parse @{u} 2>/dev/null || echo "")
+              if [ "$LOCAL" != "$REMOTE" ] && [ -n "$REMOTE" ]; then
                 git -C "$target" pull
                 echo "$name updated"
               else
                 echo "$name already up to date"
               fi
             else
+              if [ -d "$target" ]; then
+                echo "Removing existing folder $target (no .git found)"
+                rm -rf "$target"
+              fi
               echo "Cloning repository $name..."
               git clone "https://github.com/$repo.git" "$target"
             fi
           done
+
 
       ###############################################################
       # GENERATE PayloadRepositories.md SORTED BY DATE DESC
