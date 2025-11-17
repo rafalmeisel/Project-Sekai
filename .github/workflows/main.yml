@@ -52,16 +52,26 @@ jobs:
       - name: Clone repositories with date
         run: |
           TODAY=$(date +"%Y_%m_%d")
-          for repo in ${{ steps.repos.outputs.repos }}; do
-            name=$(basename $repo)
+          for repo_url in ${{ steps.repos.outputs.repos }}; do
+            [ -z "$repo_url" ] && continue
+
+            # Remove trailing slash if any
+            repo_url=${repo_url%/}
+
+            # Extract owner/repo from URL
+            repo_path=$(echo "$repo_url" | sed -E 's|https://github.com/||')
+
+            # Extract repository name
+            name=$(basename "$repo_path")
+
             dest="Payload Repositories/${TODAY}_${name}"
-            echo "Processing repository: $repo -> $dest"
+            echo "Processing repository: $repo_url -> $dest"
 
             # Remove previous folder if exists
             rm -rf "$dest"
 
             # Clone repository
-            git clone "https://github.com/$repo.git" "$dest"
+            git clone "$repo_url" "$dest"
 
             # Move .git to .git_history to prevent submodule and preserve history
             if [ -d "$dest/.git" ]; then
@@ -80,12 +90,17 @@ jobs:
           echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
-          for repo in ${{ steps.repos.outputs.repos }}; do
-            name=$(basename $repo)
-            api="https://api.github.com/repos/$repo/commits/main"
+          for repo_url in ${{ steps.repos.outputs.repos }}; do
+            [ -z "$repo_url" ] && continue
+
+            repo_url=${repo_url%/}
+            repo_path=$(echo "$repo_url" | sed -E 's|https://github.com/||')
+            name=$(basename "$repo_path")
+            api="https://api.github.com/repos/$repo_path/commits/main"
+
             json=$(curl -s -H "Authorization: token $TOKEN" $api)
             date=$(echo "$json" | jq -r '.commit.author.date')
-            link="https://github.com/$repo"
+            link="$repo_url"
             echo "$date|$name|$link" >> $tmpfile
           done
 
