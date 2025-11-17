@@ -39,7 +39,7 @@ jobs:
           echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # DOWNLOAD ENTIRE REPOSITORIES
+      # DOWNLOAD ENTIRE REPOSITORIES (FULL COPY, NOT SUBMODULE)
       ###############################################################
       - name: Clone repositories
         run: |
@@ -48,6 +48,8 @@ jobs:
             echo "Cloning repository: $repo"
             rm -rf "Payload Repositories/$name"
             git clone https://github.com/$repo.git "Payload Repositories/$name"
+            # Remove .git to prevent submodule behavior
+            rm -rf "Payload Repositories/$name/.git"
           done
 
       ###############################################################
