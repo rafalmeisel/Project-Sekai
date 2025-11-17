@@ -23,51 +23,49 @@ jobs:
       ###############################################################
       - name: Ensure Payload Repositories directory exists
         run: |
-          mkdir -p "Payload Repositories"
+          if [ ! -d "Payload Repositories" ]; then
+            echo "Creating directory Payload Repositories"
+            mkdir -p "Payload Repositories"
+          else
+            echo "Directory 'Payload Repositories' already exists!"
+          fi
 
       ###############################################################
       # READ REPOSITORY LIST FROM FILE
       ###############################################################
-      - name: Set repository list
+      - name: Set repository list from file
         id: repos
         run: |
-          # Read URLs from file into one line separated by space
-          repos=$(grep -v '^$' "Payload Repositories/Payload Repositories Source.txt" | tr '\n' ' ')
-          echo "repos=$repos" >> "$GITHUB_OUTPUT"
+          FILE="Payload Repositories/Payload Repositories Source.txt"
+          if [ ! -f "$FILE" ]; then
+            echo "File $FILE does not exist"
+            exit 1
+          fi
+
+          # Read each line, skip empty lines, join into a space-separated list
+          REPOS=$(grep -v '^$' "$FILE" | tr '\n' ' ' | sed 's/ $//')
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # CLONE OR UPDATE REPOSITORIES
+      # CLONE AND ARCHIVE REPOSITORIES WITH DATE
       ###############################################################
-      - name: Clone or update repositories if changed
-        env:
-          TOKEN: ${{ secrets.GH_TOKEN }}
+      - name: Clone repositories with date
         run: |
-          TODAY=$(date +'%Y_%m_%d')
-          for repo_url in ${{ steps.repos.outputs.repos }}; do
-            # Extract repository name from URL
-            repo_name=$(basename $repo_url .git)
-            # Get latest commit hash from GitHub API
-            latest_commit=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/${repo_url#https://github.com/}/commits/main" | jq -r '.sha')
+          TODAY=$(date +"%Y_%m_%d")
+          for repo in ${{ steps.repos.outputs.repos }}; do
+            name=$(basename $repo)
+            dest="Payload Repositories/${TODAY}_${name}"
+            echo "Processing repository: $repo -> $dest"
 
-            last_commit_file="Payload Repositories/$repo_name/.last_commit"
-            if [ -f "$last_commit_file" ]; then
-              last_commit=$(cat "$last_commit_file")
-            else
-              last_commit=""
-            fi
+            # Remove previous folder if exists
+            rm -rf "$dest"
 
-            # Only clone new folder if repo changed
-            if [ "$latest_commit" != "$last_commit" ]; then
-              echo "Repository $repo_name has changed. Cloning..."
-              target_dir="Payload Repositories/${TODAY}_$repo_name"
-              mkdir -p "$target_dir"
-              git clone "$repo_url" "$target_dir"
-              # Move .git to .git_history to avoid submodule
-              mv "$target_dir/.git" "$target_dir/.git_history"
-              # Save latest commit hash
-              echo "$latest_commit" > "$last_commit_file"
-            else
-              echo "Repository $repo_name unchanged. Skipping..."
+            # Clone repository
+            git clone "https://github.com/$repo.git" "$dest"
+
+            # Move .git to .git_history to prevent submodule and preserve history
+            if [ -d "$dest/.git" ]; then
+              mv "$dest/.git" "$dest/.git_history"
             fi
           done
 
@@ -82,17 +80,18 @@ jobs:
           echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
-          for repo_url in ${{ steps.repos.outputs.repos }}; do
-            repo_name=$(basename $repo_url .git)
-            api="https://api.github.com/repos/${repo_url#https://github.com/}/commits/main"
+          for repo in ${{ steps.repos.outputs.repos }}; do
+            name=$(basename $repo)
+            api="https://api.github.com/repos/$repo/commits/main"
             json=$(curl -s -H "Authorization: token $TOKEN" $api)
             date=$(echo "$json" | jq -r '.commit.author.date')
-            link="$repo_url"
-            echo "$date|$repo_name|$link" >> $tmpfile
+            link="https://github.com/$repo"
+            echo "$date|$name|$link" >> $tmpfile
           done
 
           sort -r $tmpfile | while IFS='|' read -r date name link; do
             echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
+            echo "Added: $name | $date | $link"
           done
           rm $tmpfile
 
@@ -112,5 +111,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update external payload repositories"
-            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:refs/heads/main
+            git push "https://$TOKEN@github.com/${{ github.repository }}" HEAD:refs/heads/main
           fi
