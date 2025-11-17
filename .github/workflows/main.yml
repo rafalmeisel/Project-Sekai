@@ -26,38 +26,53 @@ jobs:
           mkdir -p "Payload Repositories"
 
       ###############################################################
-      # CLONE REPOSITORIES INTO DATED FOLDERS
+      # READ REPOSITORY LIST FROM FILE
       ###############################################################
-      - name: Clone repositories
+      - name: Set repository list
+        id: repos
         run: |
-          TODAY=$(date +"%Y_%m_%d")
-          while IFS= read -r repo_url || [[ -n "$repo_url" ]]; do
-            # Skip empty lines
-            [ -z "$repo_url" ] && continue
-
-            # Remove trailing slash if any
-            repo_url=${repo_url%/}
-
-            # Extract repository name
-            name=$(basename "$repo_url")
-            target_dir="Payload Repositories/${TODAY}_${name}"
-
-            echo "Processing repository: $repo_url -> $target_dir"
-
-            # Remove old folder if exists
-            rm -rf "$target_dir"
-
-            # Clone repository exactly as URL
-            git clone "$repo_url" "$target_dir"
-
-            # Move .git to .git_history to preserve history but avoid submodules
-            if [ -d "$target_dir/.git" ]; then
-              mv "$target_dir/.git" "$target_dir/.git_history"
-            fi
-          done < "Payload Repositories Source.txt"
+          # Read URLs from file into one line separated by space
+          repos=$(grep -v '^$' "Payload Repositories/Payload Repositories Source.txt" | tr '\n' ' ')
+          echo "repos=$repos" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # GENERATE PayloadRepositories.md SORTED BY LAST COMMIT DATE
+      # CLONE OR UPDATE REPOSITORIES
+      ###############################################################
+      - name: Clone or update repositories if changed
+        env:
+          TOKEN: ${{ secrets.GH_TOKEN }}
+        run: |
+          TODAY=$(date +'%Y_%m_%d')
+          for repo_url in ${{ steps.repos.outputs.repos }}; do
+            # Extract repository name from URL
+            repo_name=$(basename $repo_url .git)
+            # Get latest commit hash from GitHub API
+            latest_commit=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/${repo_url#https://github.com/}/commits/main" | jq -r '.sha')
+
+            last_commit_file="Payload Repositories/$repo_name/.last_commit"
+            if [ -f "$last_commit_file" ]; then
+              last_commit=$(cat "$last_commit_file")
+            else
+              last_commit=""
+            fi
+
+            # Only clone new folder if repo changed
+            if [ "$latest_commit" != "$last_commit" ]; then
+              echo "Repository $repo_name has changed. Cloning..."
+              target_dir="Payload Repositories/${TODAY}_$repo_name"
+              mkdir -p "$target_dir"
+              git clone "$repo_url" "$target_dir"
+              # Move .git to .git_history to avoid submodule
+              mv "$target_dir/.git" "$target_dir/.git_history"
+              # Save latest commit hash
+              echo "$latest_commit" > "$last_commit_file"
+            else
+              echo "Repository $repo_name unchanged. Skipping..."
+            fi
+          done
+
+      ###############################################################
+      # GENERATE PayloadRepositories.md SORTED BY DATE DESC
       ###############################################################
       - name: Generate PayloadRepositories.md
         env:
@@ -67,23 +82,17 @@ jobs:
           echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
-
-          while IFS= read -r repo_url || [[ -n "$repo_url" ]]; do
-            [ -z "$repo_url" ] && continue
-            repo_url=${repo_url%/}
-            name=$(basename "$repo_url")
-            api="https://api.github.com/repos/$name/commits/main"
-
-            # Fetch last commit date
-            json=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/${repo_url#https://github.com/}/commits/main")
+          for repo_url in ${{ steps.repos.outputs.repos }}; do
+            repo_name=$(basename $repo_url .git)
+            api="https://api.github.com/repos/${repo_url#https://github.com/}/commits/main"
+            json=$(curl -s -H "Authorization: token $TOKEN" $api)
             date=$(echo "$json" | jq -r '.commit.author.date')
             link="$repo_url"
-            echo "$date|$name|$link" >> $tmpfile
-          done < "Payload Repositories Source.txt"
+            echo "$date|$repo_name|$link" >> $tmpfile
+          done
 
           sort -r $tmpfile | while IFS='|' read -r date name link; do
             echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
-            echo "Added: $name | $date | $link"
           done
           rm $tmpfile
 
@@ -103,5 +112,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update external payload repositories"
-            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:${{ github.ref }}
+            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:refs/heads/main
           fi
