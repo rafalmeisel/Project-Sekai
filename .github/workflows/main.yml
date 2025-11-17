@@ -23,53 +23,49 @@ jobs:
       ###############################################################
       - name: Ensure Payload Repositories directory exists
         run: |
-          mkdir -p "Payload Repositories"
+          if [ ! -d "Payload Repositories" ]; then
+            echo "Creating directory Payload Repositories"
+            mkdir -p "Payload Repositories"
+          else
+            echo "Directory 'Payload Repositories' already exists!"
+          fi
 
       ###############################################################
-      # SET REPOSITORY LIST
+      # READ REPOSITORY LIST FROM FILE
       ###############################################################
-      - name: Set repository list
+      - name: Set repository list from file
         id: repos
         run: |
-          echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
+          FILE="Payload Repositories/Payload Repositories Source.txt"
+          if [ ! -f "$FILE" ]; then
+            echo "File $FILE does not exist"
+            exit 1
+          fi
+
+          # Read each line, skip empty lines, join into a space-separated list
+          REPOS=$(grep -v '^$' "$FILE" | tr '\n' ' ' | sed 's/ $//')
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # CLONE REPOSITORIES INTO DATE FOLDERS, PRESERVE HISTORY, NO SUBMODULE
+      # CLONE AND ARCHIVE REPOSITORIES WITH DATE
       ###############################################################
-      - name: Clone repositories with history archive
+      - name: Clone repositories with date
         run: |
-          TODAY=$(date +%Y_%m_%d)
-
+          TODAY=$(date +"%Y_%m_%d")
           for repo in ${{ steps.repos.outputs.repos }}; do
-            NAME=$(basename $repo)
-            TARGET_DIR="Payload Repositories/$NAME/${TODAY}_$NAME"
-            TMP_DIR=$(mktemp -d)
+            name=$(basename $repo)
+            dest="Payload Repositories/${TODAY}_${name}"
+            echo "Processing repository: $repo -> $dest"
 
-            echo "Cloning $repo into temporary folder"
-            git clone "https://github.com/$repo.git" "$TMP_DIR/$NAME"
+            # Remove previous folder if exists
+            rm -rf "$dest"
 
-            # Move .git to .git_history to avoid submodule
-            mv "$TMP_DIR/$NAME/.git" "$TMP_DIR/$NAME/.git_history"
+            # Clone repository
+            git clone "https://github.com/$repo.git" "$dest"
 
-            # Check if a previous version exists
-            LAST_DIR=$(ls -1d "Payload Repositories/$NAME"/*/ 2>/dev/null | sort | tail -n1)
-
-            if [ -n "$LAST_DIR" ]; then
-                OLD_HASH=$(git --git-dir="$LAST_DIR/.git_history" rev-parse HEAD)
-                NEW_HASH=$(git --git-dir="$TMP_DIR/$NAME/.git_history" rev-parse HEAD)
-
-                if [ "$OLD_HASH" != "$NEW_HASH" ]; then
-                    echo "Repository $NAME changed, saving to $TARGET_DIR"
-                    mkdir -p "$(dirname "$TARGET_DIR")"
-                    mv "$TMP_DIR/$NAME" "$TARGET_DIR"
-                else
-                    echo "Repository $NAME up-to-date, skipping"
-                    rm -rf "$TMP_DIR/$NAME"
-                fi
-            else
-                echo "First copy of $NAME, saving to $TARGET_DIR"
-                mkdir -p "$(dirname "$TARGET_DIR")"
-                mv "$TMP_DIR/$NAME" "$TARGET_DIR"
+            # Move .git to .git_history to prevent submodule and preserve history
+            if [ -d "$dest/.git" ]; then
+              mv "$dest/.git" "$dest/.git_history"
             fi
           done
 
@@ -85,16 +81,17 @@ jobs:
 
           tmpfile=$(mktemp)
           for repo in ${{ steps.repos.outputs.repos }}; do
-            NAME=$(basename $repo)
+            name=$(basename $repo)
             api="https://api.github.com/repos/$repo/commits/main"
             json=$(curl -s -H "Authorization: token $TOKEN" $api)
             date=$(echo "$json" | jq -r '.commit.author.date')
             link="https://github.com/$repo"
-            echo "$date|$NAME|$link" >> $tmpfile
+            echo "$date|$name|$link" >> $tmpfile
           done
 
           sort -r $tmpfile | while IFS='|' read -r date name link; do
             echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
+            echo "Added: $name | $date | $link"
           done
           rm $tmpfile
 
@@ -114,5 +111,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update external payload repositories"
-            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:refs/heads/main
+            git push "https://$TOKEN@github.com/${{ github.repository }}" HEAD:refs/heads/main
           fi
