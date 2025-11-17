@@ -36,12 +36,8 @@ jobs:
       - name: Set repository list from file
         id: repos
         run: |
-          repos=""
-          while IFS= read -r line; do
-            # Skip empty lines
-            [[ -z "$line" ]] && continue
-            repos="$repos $line"
-          done < "Payload Repositories/Payload Repositories Source.txt"
+          # Read URLs from file and convert into a space-separated list
+          repos=$(cat "Payload Repositories/Payload Repositories Source.txt" | tr '\n' ' ')
           echo "repos=$repos" >> "$GITHUB_OUTPUT"
 
       ###############################################################
@@ -52,7 +48,7 @@ jobs:
           TODAY=$(date +"%Y_%m_%d")
           for repo_url in ${{ steps.repos.outputs.repos }}; do
             # Extract repo name from URL (last part after /)
-            name=$(basename "$repo_url" .git)
+            name=$(basename "$repo_url")
             target_dir="Payload Repositories/${TODAY}_${name}"
 
             echo "Processing repository: $repo_url -> $target_dir"
@@ -60,14 +56,15 @@ jobs:
             # Remove old directory if exists
             rm -rf "$target_dir"
 
-            # Clone full repository using the URL exactly as read
+            # Clone using the exact URL from file
             git clone "$repo_url" "$target_dir"
 
-            # Move .git to .git_history to avoid submodule
+            # Move .git to .git_history to avoid submodule but keep history
             if [ -d "$target_dir/.git" ]; then
               mv "$target_dir/.git" "$target_dir/.git_history"
             fi
           done
+
 
       ###############################################################
       # GENERATE PayloadRepositories.md SORTED BY DATE DESC
