@@ -39,18 +39,30 @@ jobs:
           echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # DOWNLOAD ENTIRE REPOSITORIES (FULL COPY, NOT SUBMODULE)
+      # DOWNLOAD ENTIRE REPOSITORIES (WITH ORIGINAL FILE TIMES)
       ###############################################################
-      - name: Clone repositories
+      - name: Clone repositories with timestamps
         run: |
+          mkdir -p "Payload Repositories/tmp"
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
             echo "Cloning repository: $repo"
             rm -rf "Payload Repositories/$name"
-            git clone https://github.com/$repo.git "Payload Repositories/$name"
-            # Remove .git to prevent submodule behavior
-            rm -rf "Payload Repositories/$name/.git"
+            
+            # Create temporary clone
+            git clone --no-single-branch https://github.com/$repo.git "Payload Repositories/tmp/$name"
+
+            # Use git archive to extract files preserving commit timestamps
+            mkdir -p "Payload Repositories/$name"
+            cd "Payload Repositories/tmp/$name"
+            git archive --format=tar HEAD | tar -x -C "../../$name" --touch
+            cd ../../..
+
+            # Remove temporary clone
+            rm -rf "Payload Repositories/tmp/$name"
           done
+          rm -rf "Payload Repositories/tmp"
+
 
       ###############################################################
       # GENERATE PayloadRepositories.md SORTED BY DATE DESC
