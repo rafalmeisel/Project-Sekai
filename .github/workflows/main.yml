@@ -51,28 +51,28 @@ jobs:
             OWNER=$(basename $(dirname "$repo_url"))
             NAME=$(basename "$repo_url" .git)
             
+            REPO_DIR="Payload Repositories/$OWNER/$NAME"
+            
             # Get latest commit date from GitHub API in YYYY_MM_DD format
             LATEST_DATE=$(curl -s -H "Authorization: token $TOKEN" \
               "https://api.github.com/repos/$OWNER/$NAME/commits/main" \
               | jq -r '.commit.author.date' | cut -d'T' -f1 | tr '-' '_')
             
-            TARGET_DIR="Payload Repositories/$OWNER/$NAME/${LATEST_DATE}_$NAME"
+            TARGET_DIR="$REPO_DIR/${LATEST_DATE}_$NAME"
 
-            # Skip if directory already exists
+            # Skip if folder already exists
             if [ -d "$TARGET_DIR" ]; then
-              echo "Repository $OWNER/$NAME is already up-to-date for $LATEST_DATE, skipping."
+              echo "Repository $OWNER/$NAME already up-to-date for $LATEST_DATE, skipping."
               continue
             fi
 
-            TMP_DIR=$(mktemp -d)
-            echo "Cloning $repo_url into temporary folder"
-            git clone "$repo_url" "$TMP_DIR/$NAME"
+            echo "Adding new version of $OWNER/$NAME for commit $LATEST_DATE"
 
-            # Move .git to .git_history to avoid submodule
+            TMP_DIR=$(mktemp -d)
+            git clone "$repo_url" "$TMP_DIR/$NAME"
             mv "$TMP_DIR/$NAME/.git" "$TMP_DIR/$NAME/.git_history"
 
-            echo "Saving repository $OWNER/$NAME to $TARGET_DIR"
-            mkdir -p "$(dirname "$TARGET_DIR")"
+            mkdir -p "$REPO_DIR"
             mv "$TMP_DIR/$NAME" "$TARGET_DIR"
           done
 
@@ -91,13 +91,13 @@ jobs:
             OWNER=$(basename $(dirname "$repo_url"))
             NAME=$(basename "$repo_url" .git)
             
-            # Get latest commit date
+            # Get latest commit date in YYYY-MM-DD format for markdown
             LATEST_DATE=$(curl -s -H "Authorization: token $TOKEN" \
               "https://api.github.com/repos/$OWNER/$NAME/commits/main" \
               | jq -r '.commit.author.date' | cut -d'T' -f1)
             
-            link="${repo_url%.git}"
-            echo "$LATEST_DATE|$NAME|$OWNER|$link" >> $tmpfile
+            LINK="${repo_url%.git}"
+            echo "$LATEST_DATE|$NAME|$OWNER|$LINK" >> $tmpfile
           done
 
           # Sort by date descending and append to Markdown
@@ -117,3 +117,10 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
           git add "PayloadRepositories.md" "Payload Repositories"
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "Auto-update external payload repositories"
+            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:refs/heads/main
+          fi
