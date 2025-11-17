@@ -54,26 +54,22 @@ jobs:
         env:
           TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo "| Repository name | Data | Link |" > PayloadRepositories.md
-          echo "|--------------------|------|------|" >> PayloadRepositories.md
+          echo "| Repository Name | Commit SHA | Date | Link |" > PayloadRepositories.md
+          echo "|-----------------|------------|------|------|" >> PayloadRepositories.md
 
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
             api="https://api.github.com/repos/$repo/commits/main"
             json=$(curl -s -H "Authorization: token $TOKEN" $api)
-
+            
             # Fetch SHA and latest commit date
-            commit=$(echo "$json" | jq -r '.sha')
+            sha=$(echo "$json" | jq -r '.sha')
             date=$(echo "$json" | jq -r '.commit.author.date')
-
-            # Link to repository
             link="https://github.com/$repo"
 
-            echo "| $name | $date | [$repo]($link) |" >> PayloadRepositories.md
-
-            echo "Dodano: $name | $date | $link"
+            echo "| $name | $sha | $date | [$repo]($link) |" >> PayloadRepositories.md
+            echo "Added: $name | $sha | $date | $link"
           done
-
 
       ###############################################################
       # COMMIT AND PUSH CHANGES
@@ -83,7 +79,8 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add PayloadRepositories PayloadRepositories.txt
+          # Dodajemy tylko poprawny plik Markdown
+          git add PayloadRepositories.md
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
