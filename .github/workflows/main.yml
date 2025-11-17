@@ -38,30 +38,36 @@ jobs:
       ###############################################################
       - name: Clone or update repositories
         run: |
+          TMP_DIR=$(mktemp -d)
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
             target="Payload Repositories/$name"
 
+            echo "Processing $name..."
+
+            # Klonujemy pełne repo do tymczasowego folderu
+            git clone "https://github.com/$repo.git" "$TMP_DIR/$name"
+
             if [ -d "$target/.git" ]; then
-              echo "Repository $name exists. Pulling latest changes..."
-              git -C "$target" fetch origin
-              LOCAL=$(git -C "$target" rev-parse @)
-              REMOTE=$(git -C "$target" rev-parse @{u} 2>/dev/null || echo "")
-              if [ "$LOCAL" != "$REMOTE" ] && [ -n "$REMOTE" ]; then
-                git -C "$target" pull
-                echo "$name updated"
+              # Porównujemy ostatni commit
+              OLD_HASH=$(git -C "$target" rev-parse HEAD)
+              NEW_HASH=$(git -C "$TMP_DIR/$name" rev-parse HEAD)
+
+              if [ "$OLD_HASH" != "$NEW_HASH" ]; then
+                echo "Updating $name..."
+                rm -rf "$target"
+                mv "$TMP_DIR/$name" "$target"
               else
-                echo "$name already up to date"
+                echo "$name is already up-to-date"
+                rm -rf "$TMP_DIR/$name"
               fi
             else
-              if [ -d "$target" ]; then
-                echo "Removing existing folder $target (no .git found)"
-                rm -rf "$target"
-              fi
-              echo "Cloning repository $name..."
-              git clone "https://github.com/$repo.git" "$target"
+              # Pierwsze pobranie
+              mv "$TMP_DIR/$name" "$target"
             fi
           done
+          rmdir "$TMP_DIR"
+
 
 
       ###############################################################
