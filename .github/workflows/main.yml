@@ -47,19 +47,22 @@ jobs:
         run: |
           TODAY=$(date +"%Y_%m_%d")
           for repo_url in ${{ steps.repos.outputs.repos }}; do
-            # Extract repo name from URL (last part after /)
+            # Remove trailing slash if present
+            repo_url=${repo_url%/}
+
+            # Extract repo name (last part after /)
             name=$(basename "$repo_url")
             target_dir="Payload Repositories/${TODAY}_${name}"
 
             echo "Processing repository: $repo_url -> $target_dir"
 
-            # Remove old directory if exists
+            # Remove old folder if exists
             rm -rf "$target_dir"
 
-            # Clone using the exact URL from file
+            # Clone exactly using the URL from file
             git clone "$repo_url" "$target_dir"
 
-            # Move .git to .git_history to avoid submodule but keep history
+            # Move .git to .git_history to preserve history but avoid submodule
             if [ -d "$target_dir/.git" ]; then
               mv "$target_dir/.git" "$target_dir/.git_history"
             fi
