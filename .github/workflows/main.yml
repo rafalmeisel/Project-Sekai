@@ -36,51 +36,44 @@ jobs:
             echo "Repository file not found: $REPO_FILE"
             exit 1
           fi
-          # Join URLs with space to store in output
           REPOS=$(paste -sd ' ' "$REPO_FILE")
           echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # CLONE REPOSITORIES INTO DATE FOLDERS, PRESERVE HISTORY, NO SUBMODULE
+      # CLONE REPOSITORIES INTO DATE FOLDERS USING LATEST COMMIT DATE
       ###############################################################
-      - name: Clone repositories with history archive
+      - name: Clone repositories with latest commit date
+        env:
+          TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          TODAY=$(date +%Y_%m_%d)
-
           for repo_url in ${{ steps.repos.outputs.repos }}; do
             # Extract owner and repo name
             OWNER=$(basename $(dirname "$repo_url"))
             NAME=$(basename "$repo_url" .git)
+            
+            # Get latest commit date from GitHub API in YYYY_MM_DD format
+            LATEST_DATE=$(curl -s -H "Authorization: token $TOKEN" \
+              "https://api.github.com/repos/$OWNER/$NAME/commits/main" \
+              | jq -r '.commit.author.date' | cut -d'T' -f1 | tr '-' '_')
+            
+            TARGET_DIR="Payload Repositories/$OWNER/$NAME/${LATEST_DATE}_$NAME"
 
-            TARGET_DIR="Payload Repositories/$OWNER/$NAME/${TODAY}_$NAME"
+            # Skip if directory already exists
+            if [ -d "$TARGET_DIR" ]; then
+              echo "Repository $OWNER/$NAME is already up-to-date for $LATEST_DATE, skipping."
+              continue
+            fi
+
             TMP_DIR=$(mktemp -d)
-
             echo "Cloning $repo_url into temporary folder"
             git clone "$repo_url" "$TMP_DIR/$NAME"
 
             # Move .git to .git_history to avoid submodule
             mv "$TMP_DIR/$NAME/.git" "$TMP_DIR/$NAME/.git_history"
 
-            # Check if a previous version exists
-            LAST_DIR=$(ls -1d "Payload Repositories/$OWNER/$NAME"/*/ 2>/dev/null | sort | tail -n1)
-
-            if [ -n "$LAST_DIR" ]; then
-                OLD_HASH=$(git --git-dir="$LAST_DIR/.git_history" rev-parse HEAD)
-                NEW_HASH=$(git --git-dir="$TMP_DIR/$NAME/.git_history" rev-parse HEAD)
-
-                if [ "$OLD_HASH" != "$NEW_HASH" ]; then
-                    echo "Repository $OWNER/$NAME changed, saving to $TARGET_DIR"
-                    mkdir -p "$(dirname "$TARGET_DIR")"
-                    mv "$TMP_DIR/$NAME" "$TARGET_DIR"
-                else
-                    echo "Repository $OWNER/$NAME up-to-date, skipping"
-                    rm -rf "$TMP_DIR/$NAME"
-                fi
-            else
-                echo "First copy of $OWNER/$NAME, saving to $TARGET_DIR"
-                mkdir -p "$(dirname "$TARGET_DIR")"
-                mv "$TMP_DIR/$NAME" "$TARGET_DIR"
-            fi
+            echo "Saving repository $OWNER/$NAME to $TARGET_DIR"
+            mkdir -p "$(dirname "$TARGET_DIR")"
+            mv "$TMP_DIR/$NAME" "$TARGET_DIR"
           done
 
       ###############################################################
@@ -97,13 +90,17 @@ jobs:
           for repo_url in ${{ steps.repos.outputs.repos }}; do
             OWNER=$(basename $(dirname "$repo_url"))
             NAME=$(basename "$repo_url" .git)
-            api="https://api.github.com/repos/$OWNER/$NAME/commits/main"
-            json=$(curl -s -H "Authorization: token $TOKEN" $api)
-            date=$(echo "$json" | jq -r '.commit.author.date')
+            
+            # Get latest commit date
+            LATEST_DATE=$(curl -s -H "Authorization: token $TOKEN" \
+              "https://api.github.com/repos/$OWNER/$NAME/commits/main" \
+              | jq -r '.commit.author.date' | cut -d'T' -f1)
+            
             link="${repo_url%.git}"
-            echo "$date|$NAME|$OWNER|$link" >> $tmpfile
+            echo "$LATEST_DATE|$NAME|$OWNER|$link" >> $tmpfile
           done
 
+          # Sort by date descending and append to Markdown
           sort -r $tmpfile | while IFS='|' read -r date name owner link; do
             echo "| $name | $owner | $date | [$name]($link) |" >> "PayloadRepositories.md"
           done
@@ -120,10 +117,3 @@ jobs:
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
           git add "PayloadRepositories.md" "Payload Repositories"
-
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-          else
-            git commit -m "Auto-update external payload repositories"
-            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:refs/heads/main
-          fi
