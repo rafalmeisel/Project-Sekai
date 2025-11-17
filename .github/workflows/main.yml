@@ -26,7 +26,7 @@ jobs:
           mkdir -p "Payload Repositories"
 
       ###############################################################
-      # SET REPOSITORY LIST
+      # LIST OF REPOSITORIES TO FETCH
       ###############################################################
       - name: Set repository list
         id: repos
@@ -34,64 +34,74 @@ jobs:
           echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # CLONE OR UPDATE REPOSITORIES
+      # CLONE OR UPDATE REPOSITORIES AND SAVE WITH DATE
       ###############################################################
       - name: Clone or update repositories
         run: |
           TMP_DIR=$(mktemp -d)
+          TODAY=$(date +%Y_%m_%d)
+
           for repo in ${{ steps.repos.outputs.repos }}; do
-            name=$(basename $repo)
-            target="Payload Repositories/$name"
+            NAME=$(basename $repo)
+            TARGET_DIR="Payload Repositories/$NAME/$TODAY_$NAME"
 
-            echo "Processing $name..."
+            echo "Processing repository: $NAME"
 
-            # Klonujemy pełne repo do tymczasowego folderu
-            git clone "https://github.com/$repo.git" "$TMP_DIR/$name"
+            # Clone repository to temporary directory
+            git clone "https://github.com/$repo.git" "$TMP_DIR/$NAME"
 
-            if [ -d "$target/.git" ]; then
-              # Porównujemy ostatni commit
-              OLD_HASH=$(git -C "$target" rev-parse HEAD)
-              NEW_HASH=$(git -C "$TMP_DIR/$name" rev-parse HEAD)
+            # Check if previous version of repository exists
+            LAST_DIR=$(ls -1d Payload\ Repositories/$NAME/*/ 2>/dev/null | sort | tail -n1)
+
+            if [ -n "$LAST_DIR" ]; then
+              # Porównanie ostatnich commitów
+              OLD_HASH=$(git -C "$LAST_DIR" rev-parse HEAD)
+              NEW_HASH=$(git -C "$TMP_DIR/$NAME" rev-parse HEAD)
 
               if [ "$OLD_HASH" != "$NEW_HASH" ]; then
-                echo "Updating $name..."
-                rm -rf "$target"
-                mv "$TMP_DIR/$name" "$target"
+                echo "Repository $NAME has changes, saving to $TARGET_DIR"
+                mkdir -p "$(dirname "$TARGET_DIR")"
+                mv "$TMP_DIR/$NAME" "$TARGET_DIR"
               else
-                echo "$name is already up-to-date"
-                rm -rf "$TMP_DIR/$name"
+                echo "Repository $NAME is up-to-date, skipping"
+                rm -rf "$TMP_DIR/$NAME"
               fi
             else
-              # Pierwsze pobranie
-              mv "$TMP_DIR/$name" "$target"
+              # First version of repository
+              echo "First copy of $NAME, saving to $TARGET_DIR"
+              mkdir -p "$(dirname "$TARGET_DIR")"
+              mv "$TMP_DIR/$NAME" "$TARGET_DIR"
             fi
           done
+
           rmdir "$TMP_DIR"
-
-
 
       ###############################################################
       # GENERATE PayloadRepositories.md SORTED BY DATE DESC
       ###############################################################
       - name: Generate PayloadRepositories.md
+        env:
+          TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo "| Repository Name | Last Commit Date | Link |" > "PayloadRepositories.md"
-          echo "|-----------------|-----------------|------|" >> "PayloadRepositories.md"
+          echo "| Repository Name | Date | Link |" > "PayloadRepositories.md"
+          echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
-
           for repo in ${{ steps.repos.outputs.repos }}; do
-            name=$(basename $repo)
-            target="Payload Repositories/$name"
-            if [ -d "$target/.git" ]; then
-              date=$(git -C "$target" log -1 --format=%cI)
-              link="https://github.com/$repo"
-              echo "$date|$name|$link" >> $tmpfile
+            NAME=$(basename $repo)
+            # We take the latest folder from the repository (latest version)
+            LATEST=$(ls -1d "Payload Repositories/$NAME/"*/ | sort | tail -n1)
+            if [ -n "$LATEST" ]; then
+              HASH=$(git -C "$LATEST" rev-parse HEAD)
+              DATE=$(git -C "$LATEST" show -s --format=%ci $HASH)
+              LINK="https://github.com/$repo"
+              echo "$DATE|$NAME|$LINK" >> $tmpfile
             fi
           done
 
           sort -r $tmpfile | while IFS='|' read -r date name link; do
             echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
+            echo "Added: $name | $date | $link"
           done
 
           rm $tmpfile
