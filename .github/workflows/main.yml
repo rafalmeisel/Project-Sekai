@@ -48,8 +48,11 @@ jobs:
           TODAY=$(date +%Y_%m_%d)
 
           for repo_url in ${{ steps.repos.outputs.repos }}; do
+            # Extract owner and repo name
+            OWNER=$(basename $(dirname "$repo_url"))
             NAME=$(basename "$repo_url" .git)
-            TARGET_DIR="Payload Repositories/$NAME/${TODAY}_$NAME"
+
+            TARGET_DIR="Payload Repositories/$OWNER/$NAME/${TODAY}_$NAME"
             TMP_DIR=$(mktemp -d)
 
             echo "Cloning $repo_url into temporary folder"
@@ -59,22 +62,22 @@ jobs:
             mv "$TMP_DIR/$NAME/.git" "$TMP_DIR/$NAME/.git_history"
 
             # Check if a previous version exists
-            LAST_DIR=$(ls -1d "Payload Repositories/$NAME"/*/ 2>/dev/null | sort | tail -n1)
+            LAST_DIR=$(ls -1d "Payload Repositories/$OWNER/$NAME"/*/ 2>/dev/null | sort | tail -n1)
 
             if [ -n "$LAST_DIR" ]; then
                 OLD_HASH=$(git --git-dir="$LAST_DIR/.git_history" rev-parse HEAD)
                 NEW_HASH=$(git --git-dir="$TMP_DIR/$NAME/.git_history" rev-parse HEAD)
 
                 if [ "$OLD_HASH" != "$NEW_HASH" ]; then
-                    echo "Repository $NAME changed, saving to $TARGET_DIR"
+                    echo "Repository $OWNER/$NAME changed, saving to $TARGET_DIR"
                     mkdir -p "$(dirname "$TARGET_DIR")"
                     mv "$TMP_DIR/$NAME" "$TARGET_DIR"
                 else
-                    echo "Repository $NAME up-to-date, skipping"
+                    echo "Repository $OWNER/$NAME up-to-date, skipping"
                     rm -rf "$TMP_DIR/$NAME"
                 fi
             else
-                echo "First copy of $NAME, saving to $TARGET_DIR"
+                echo "First copy of $OWNER/$NAME, saving to $TARGET_DIR"
                 mkdir -p "$(dirname "$TARGET_DIR")"
                 mv "$TMP_DIR/$NAME" "$TARGET_DIR"
             fi
@@ -87,21 +90,22 @@ jobs:
         env:
           TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo "| Repository Name | Date | Link |" > "PayloadRepositories.md"
-          echo "|-----------------|------|------|" >> "PayloadRepositories.md"
+          echo "| Repository Name | Owner | Date | Link |" > "PayloadRepositories.md"
+          echo "|-----------------|-------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
           for repo_url in ${{ steps.repos.outputs.repos }}; do
+            OWNER=$(basename $(dirname "$repo_url"))
             NAME=$(basename "$repo_url" .git)
-            api="https://api.github.com/repos/${NAME%.*}/commits/main"
+            api="https://api.github.com/repos/$OWNER/$NAME/commits/main"
             json=$(curl -s -H "Authorization: token $TOKEN" $api)
             date=$(echo "$json" | jq -r '.commit.author.date')
             link="${repo_url%.git}"
-            echo "$date|$NAME|$link" >> $tmpfile
+            echo "$date|$NAME|$OWNER|$link" >> $tmpfile
           done
 
-          sort -r $tmpfile | while IFS='|' read -r date name link; do
-            echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
+          sort -r $tmpfile | while IFS='|' read -r date name owner link; do
+            echo "| $name | $owner | $date | [$name]($link) |" >> "PayloadRepositories.md"
           done
           rm $tmpfile
 
