@@ -102,7 +102,7 @@ jobs:
 
           # Sort by date descending and append to Markdown
           sort -r $tmpfile | while IFS='|' read -r date name owner link; do
-            echo "| $name | $owner | $date | [$name]($link) |" >> "PayloadRepositories.md"
+            echo "| $date | $owner | $name | [$name]($link) |" >> "PayloadRepositories.md"
           done
           rm $tmpfile
 
