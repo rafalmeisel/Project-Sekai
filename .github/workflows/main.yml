@@ -83,8 +83,8 @@ jobs:
         env:
           TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo "| Repository Name | Owner | Date | Link |" > "PayloadRepositories.md"
-          echo "|-----------------|-------|------|------|" >> "PayloadRepositories.md"
+          echo "| Date | Owner | Repository Name | Link |" > "PayloadRepositories.md"
+          echo "|------|-------|-----------------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
           for repo_url in ${{ steps.repos.outputs.repos }}; do
