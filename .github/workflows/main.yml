@@ -10,6 +10,9 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      ###############################################################
+      # CHECKOUT MAIN REPOSITORY
+      ###############################################################
       - name: Checkout main repository
         uses: actions/checkout@v4
         with:
@@ -18,13 +21,13 @@ jobs:
       ###############################################################
       # CHECK IF FOLDER EXISTS, IF NOT — CREATE IT
       ###############################################################
-      - name: Ensure PayloadRepositories directory exists
+      - name: Ensure Payload Repositories directory exists
         run: |
-          if [ ! -d "PayloadRepositories" ]; then
-            echo "Creating directory PayloadRepositories"
-            mkdir -p "PayloadRepositories"
+          if [ ! -d "Payload Repositories" ]; then
+            echo "Creating directory Payload Repositories"
+            mkdir -p "Payload Repositories"
           else
-            echo "Directory PayloadRepositories already exists!"
+            echo "Directory 'Payload Repositories' already exists!"
           fi
 
       ###############################################################
@@ -36,40 +39,44 @@ jobs:
           echo "repos=elder-plinius/CL4R1T4S liu00222/Open-Prompt-Injection" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # FETCH DATA FOR EACH REPOSITORY
+      # DOWNLOAD ENTIRE REPOSITORIES
       ###############################################################
-      - name: Download repositories
+      - name: Clone repositories
         run: |
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
-            echo "Fetching repository: $repo"
-            rm -rf "PayloadRepositories/$name"
-            git clone --depth 1 https://github.com/$repo.git "PayloadRepositories/$name"
+            echo "Cloning repository: $repo"
+            rm -rf "Payload Repositories/$name"
+            git clone https://github.com/$repo.git "Payload Repositories/$name"
           done
 
       ###############################################################
-      # GENERATE PayloadRepositories.md
+      # GENERATE PayloadRepositories.md SORTED BY DATE DESC
       ###############################################################
       - name: Generate PayloadRepositories.md
         env:
           TOKEN: ${{ secrets.GH_TOKEN }}
         run: |
-          echo "| Repository Name | Commit SHA | Date | Link |" > PayloadRepositories.md
-          echo "|-----------------|------------|------|------|" >> PayloadRepositories.md
+          echo "| Repository Name | Date | Link |" > "PayloadRepositories.md"
+          echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
+          # Create a temporary file with repo info and commit dates
+          tmpfile=$(mktemp)
           for repo in ${{ steps.repos.outputs.repos }}; do
             name=$(basename $repo)
             api="https://api.github.com/repos/$repo/commits/main"
             json=$(curl -s -H "Authorization: token $TOKEN" $api)
-            
-            # Fetch SHA and latest commit date
-            sha=$(echo "$json" | jq -r '.sha')
             date=$(echo "$json" | jq -r '.commit.author.date')
             link="https://github.com/$repo"
-
-            echo "| $name | $sha | $date | [$repo]($link) |" >> PayloadRepositories.md
-            echo "Added: $name | $sha | $date | $link"
+            echo "$date|$name|$link" >> $tmpfile
           done
+
+          # Sort by date descending and append to Markdown
+          sort -r $tmpfile | while IFS='|' read -r date name link; do
+            echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
+            echo "Added: $name | $date | $link"
+          done
+          rm $tmpfile
 
       ###############################################################
       # COMMIT AND PUSH CHANGES
@@ -79,8 +86,7 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Dodajemy tylko poprawny plik Markdown
-          git add PayloadRepositories.md
+          git add "PayloadRepositories.md" "Payload Repositories"
 
           if git diff --cached --quiet; then
             echo "No changes to commit"
