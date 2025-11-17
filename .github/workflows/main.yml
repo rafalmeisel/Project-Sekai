@@ -31,41 +31,41 @@ jobs:
           fi
 
       ###############################################################
-      # READ REPOSITORIES FROM FILE
+      # READ REPOSITORY LIST FROM FILE
       ###############################################################
       - name: Set repository list from file
         id: repos
         run: |
-          repos=""
-          while IFS= read -r line; do
-            # Skip empty lines
-            [[ -z "$line" ]] && continue
-            repos="$repos $line"
-          done < "Payload Repositories/Payload Repositories Source.txt"
-          echo "repos=$repos" >> "$GITHUB_OUTPUT"
+          FILE="Payload Repositories/Payload Repositories Source.txt"
+          if [ ! -f "$FILE" ]; then
+            echo "File $FILE does not exist"
+            exit 1
+          fi
+
+          # Read each line, skip empty lines, join into a space-separated list
+          REPOS=$(grep -v '^$' "$FILE" | tr '\n' ' ' | sed 's/ $//')
+          echo "repos=$REPOS" >> "$GITHUB_OUTPUT"
 
       ###############################################################
-      # CLONE REPOSITORIES WITH HISTORY SAVED
+      # CLONE AND ARCHIVE REPOSITORIES WITH DATE
       ###############################################################
-      - name: Clone repositories
+      - name: Clone repositories with date
         run: |
           TODAY=$(date +"%Y_%m_%d")
-          for repo_url in ${{ steps.repos.outputs.repos }}; do
-            # Extract repo name from URL (last part after /)
-            name=$(basename "$repo_url" .git)
-            target_dir="Payload Repositories/${TODAY}_${name}"
+          for repo in ${{ steps.repos.outputs.repos }}; do
+            name=$(basename $repo)
+            dest="Payload Repositories/${TODAY}_${name}"
+            echo "Processing repository: $repo -> $dest"
 
-            echo "Processing repository: $repo_url -> $target_dir"
+            # Remove previous folder if exists
+            rm -rf "$dest"
 
-            # Remove old directory if exists
-            rm -rf "$target_dir"
+            # Clone repository
+            git clone "https://github.com/$repo.git" "$dest"
 
-            # Clone full repository using the URL exactly as read
-            git clone "$repo_url" "$target_dir"
-
-            # Move .git to .git_history to avoid submodule
-            if [ -d "$target_dir/.git" ]; then
-              mv "$target_dir/.git" "$target_dir/.git_history"
+            # Move .git to .git_history to prevent submodule and preserve history
+            if [ -d "$dest/.git" ]; then
+              mv "$dest/.git" "$dest/.git_history"
             fi
           done
 
@@ -80,19 +80,18 @@ jobs:
           echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
-          TODAY=$(date +"%Y_%m_%d")
-          for repo_url in ${{ steps.repos.outputs.repos }}; do
-            name=$(basename "$repo_url")
-            repo_path="${repo_url#https://github.com/}"
-            # Get latest commit on main branch
-            json=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/$repo_path/commits/main")
+          for repo in ${{ steps.repos.outputs.repos }}; do
+            name=$(basename $repo)
+            api="https://api.github.com/repos/$repo/commits/main"
+            json=$(curl -s -H "Authorization: token $TOKEN" $api)
             date=$(echo "$json" | jq -r '.commit.author.date')
-            link="$repo_url"
+            link="https://github.com/$repo"
             echo "$date|$name|$link" >> $tmpfile
           done
 
           sort -r $tmpfile | while IFS='|' read -r date name link; do
             echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
+            echo "Added: $name | $date | $link"
           done
           rm $tmpfile
 
@@ -112,5 +111,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update external payload repositories"
-            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:refs/heads/main
+            git push "https://$TOKEN@github.com/${{ github.repository }}" HEAD:refs/heads/main
           fi
