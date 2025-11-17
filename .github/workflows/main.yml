@@ -23,34 +23,22 @@ jobs:
       ###############################################################
       - name: Ensure Payload Repositories directory exists
         run: |
-          if [ ! -d "Payload Repositories" ]; then
-            echo "Creating directory Payload Repositories"
-            mkdir -p "Payload Repositories"
-          else
-            echo "Directory 'Payload Repositories' already exists!"
-          fi
+          mkdir -p "Payload Repositories"
 
       ###############################################################
-      # READ REPOSITORIES FROM FILE
-      ###############################################################
-      - name: Set repository list from file
-        id: repos
-        run: |
-          # Read URLs from file and convert into a space-separated list
-          repos=$(cat "Payload Repositories/Payload Repositories Source.txt" | tr '\n' ' ')
-          echo "repos=$repos" >> "$GITHUB_OUTPUT"
-
-      ###############################################################
-      # CLONE REPOSITORIES WITH HISTORY SAVED
+      # CLONE REPOSITORIES INTO DATED FOLDERS
       ###############################################################
       - name: Clone repositories
         run: |
           TODAY=$(date +"%Y_%m_%d")
-          for repo_url in ${{ steps.repos.outputs.repos }}; do
-            # Remove trailing slash if present
+          while IFS= read -r repo_url || [[ -n "$repo_url" ]]; do
+            # Skip empty lines
+            [ -z "$repo_url" ] && continue
+
+            # Remove trailing slash if any
             repo_url=${repo_url%/}
 
-            # Extract repo name (last part after /)
+            # Extract repository name
             name=$(basename "$repo_url")
             target_dir="Payload Repositories/${TODAY}_${name}"
 
@@ -59,18 +47,17 @@ jobs:
             # Remove old folder if exists
             rm -rf "$target_dir"
 
-            # Clone exactly using the URL from file
+            # Clone repository exactly as URL
             git clone "$repo_url" "$target_dir"
 
-            # Move .git to .git_history to preserve history but avoid submodule
+            # Move .git to .git_history to preserve history but avoid submodules
             if [ -d "$target_dir/.git" ]; then
               mv "$target_dir/.git" "$target_dir/.git_history"
             fi
-          done
-
+          done < "Payload Repositories Source.txt"
 
       ###############################################################
-      # GENERATE PayloadRepositories.md SORTED BY DATE DESC
+      # GENERATE PayloadRepositories.md SORTED BY LAST COMMIT DATE
       ###############################################################
       - name: Generate PayloadRepositories.md
         env:
@@ -80,19 +67,23 @@ jobs:
           echo "|-----------------|------|------|" >> "PayloadRepositories.md"
 
           tmpfile=$(mktemp)
-          TODAY=$(date +"%Y_%m_%d")
-          for repo_url in ${{ steps.repos.outputs.repos }}; do
+
+          while IFS= read -r repo_url || [[ -n "$repo_url" ]]; do
+            [ -z "$repo_url" ] && continue
+            repo_url=${repo_url%/}
             name=$(basename "$repo_url")
-            repo_path="${repo_url#https://github.com/}"
-            # Get latest commit on main branch
-            json=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/$repo_path/commits/main")
+            api="https://api.github.com/repos/$name/commits/main"
+
+            # Fetch last commit date
+            json=$(curl -s -H "Authorization: token $TOKEN" "https://api.github.com/repos/${repo_url#https://github.com/}/commits/main")
             date=$(echo "$json" | jq -r '.commit.author.date')
             link="$repo_url"
             echo "$date|$name|$link" >> $tmpfile
-          done
+          done < "Payload Repositories Source.txt"
 
           sort -r $tmpfile | while IFS='|' read -r date name link; do
             echo "| $name | $date | [$name]($link) |" >> "PayloadRepositories.md"
+            echo "Added: $name | $date | $link"
           done
           rm $tmpfile
 
@@ -112,5 +103,5 @@ jobs:
             echo "No changes to commit"
           else
             git commit -m "Auto-update external payload repositories"
-            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:refs/heads/main
+            git push https://$TOKEN@github.com/${{ github.repository }} HEAD:${{ github.ref }}
           fi
