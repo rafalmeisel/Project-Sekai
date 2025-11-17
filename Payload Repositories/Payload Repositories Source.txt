@@ -1,2 +1,1 @@
-https://github.com/elder-plinius/L1B3RT4S.git
-https://github.com/elder-plinius/CL4R1T4S.git
+elder-plinius/L1B3RT4S.git
