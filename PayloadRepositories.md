@@ -1,9 +1,9 @@
 | Date | Owner | Repository Name | Link |
 |------|-------|-----------------|------|
+| 2026-01-13 | mik0w | pallms | [pallms](https://github.com/mik0w/pallms) |
 | 2025-12-27 | elder-plinius | L1B3RT4S | [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S) |
 | 2025-11-24 | elder-plinius | CL4R1T4S | [CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S) |
 | 2025-10-29 | liu00222 | Open-Prompt-Injection | [Open-Prompt-Injection](https://github.com/liu00222/Open-Prompt-Injection) |
-| 2025-06-03 | mik0w | pallms | [pallms](https://github.com/mik0w/pallms) |
 | 2024-11-10 | Koinsec | Prompt-injection-payloads | [Prompt-injection-payloads](https://github.com/Koinsec/Prompt-injection-payloads) |
 | 2024-11-08 | friuns2 | BlackFriday-GPTs-Prompts | [BlackFriday-GPTs-Prompts](https://github.com/friuns2/BlackFriday-GPTs-Prompts) |
 | 2024-10-23 | protectai | ai-exploits | [ai-exploits](https://github.com/protectai/ai-exploits) |
