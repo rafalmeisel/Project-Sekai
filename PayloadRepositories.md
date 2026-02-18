@@ -1,7 +1,7 @@
 | Date | Owner | Repository Name | Link |
 |------|-------|-----------------|------|
-| 2026-02-08 | elder-plinius | L1B3RT4S | [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S) |
-| 2026-02-06 | elder-plinius | CL4R1T4S | [CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S) |
+| 2026-02-17 | elder-plinius | L1B3RT4S | [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S) |
+| 2026-02-17 | elder-plinius | CL4R1T4S | [CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S) |
 | 2026-01-13 | mik0w | pallms | [pallms](https://github.com/mik0w/pallms) |
 | 2025-10-29 | liu00222 | Open-Prompt-Injection | [Open-Prompt-Injection](https://github.com/liu00222/Open-Prompt-Injection) |
 | 2024-11-10 | Koinsec | Prompt-injection-payloads | [Prompt-injection-payloads](https://github.com/Koinsec/Prompt-injection-payloads) |
