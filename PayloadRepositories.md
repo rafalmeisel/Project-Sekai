@@ -1,6 +1,6 @@
 | Date | Owner | Repository Name | Link |
 |------|-------|-----------------|------|
-| 2026-04-16 | elder-plinius | CL4R1T4S | [CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S) |
+| 2026-04-17 | elder-plinius | CL4R1T4S | [CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S) |
 | 2026-03-18 | friuns2 | BlackFriday-GPTs-Prompts | [BlackFriday-GPTs-Prompts](https://github.com/friuns2/BlackFriday-GPTs-Prompts) |
 | 2026-03-02 | 0xk1h0 | ChatGPT_DAN | [ChatGPT_DAN](https://github.com/0xk1h0/ChatGPT_DAN) |
 | 2026-02-17 | elder-plinius | L1B3RT4S | [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S) |
