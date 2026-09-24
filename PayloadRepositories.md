@@ -1,8 +1,8 @@
 | Date | Owner | Repository Name | Link |
 |------|-------|-----------------|------|
 | null | sherdencooper | prompt-injection | [prompt-injection](https://github.com/sherdencooper/prompt-injection) |
+| 2026-09-23 | liu00222 | Open-Prompt-Injection | [Open-Prompt-Injection](https://github.com/liu00222/Open-Prompt-Injection) |
 | 2026-09-22 | elder-plinius | CL4R1T4S | [CL4R1T4S](https://github.com/elder-plinius/CL4R1T4S) |
-| 2026-09-12 | liu00222 | Open-Prompt-Injection | [Open-Prompt-Injection](https://github.com/liu00222/Open-Prompt-Injection) |
 | 2026-03-18 | friuns2 | BlackFriday-GPTs-Prompts | [BlackFriday-GPTs-Prompts](https://github.com/friuns2/BlackFriday-GPTs-Prompts) |
 | 2026-03-02 | 0xk1h0 | ChatGPT_DAN | [ChatGPT_DAN](https://github.com/0xk1h0/ChatGPT_DAN) |
 | 2026-02-17 | elder-plinius | L1B3RT4S | [L1B3RT4S](https://github.com/elder-plinius/L1B3RT4S) |
